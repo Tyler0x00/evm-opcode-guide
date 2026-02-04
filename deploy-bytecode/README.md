@@ -2,30 +2,31 @@
 
 ## Quick Copy-Paste
 
-**Solidity**
+**Solidity** - embed in your contract
 ```solidity
-function deployFromBytecode(bytes memory contractCode) internal returns (address deployedAddress) {
-    bytes2 codeLength = bytes2(uint16(contractCode.length));
-    bytes memory byteCode = abi.encodePacked(
-        hex"61", codeLength,
-        hex"600c5f3961", codeLength,
-        hex"5ff3", contractCode
+function deployExact(bytes calldata bytecode) external payable returns (address deployed) {
+    // Wrap in minimal init code: CODECOPY + RETURN (12 bytes)
+    // Result: deployed contract code == bytecode (byte-for-byte identical)
+    bytes memory initCode = abi.encodePacked(
+        hex"61", bytes2(uint16(bytecode.length)),
+        hex"600c5f3961", bytes2(uint16(bytecode.length)),
+        hex"5ff3", bytecode
     );
-
     assembly ("memory-safe") {
-        deployedAddress := create(0, add(byteCode, 0x20), mload(byteCode))
+        deployed := create(callvalue(), add(initCode, 0x20), mload(initCode))
     }
-
-    require(deployedAddress != address(0), "deployFromBytecode failed");
+    if (deployed == address(0)) revert DeployFailed();
 }
 ```
 
-**Go**
+**Solidity** - standalone contract: [BytecodeDeployer.sol](./BytecodeDeployer.sol)
+
+**Go** - generate init code
 ```go
-func ToInitcode(byteCode string) string {
-    byteCode = strings.TrimPrefix(byteCode, "0x")
-    totalBytes := len(byteCode) / 2
-    return fmt.Sprintf("61%04x600c5f3961%04x5ff3%s", totalBytes, totalBytes, byteCode)
+func ToInitcode(bytecode string) string {
+    bytecode = strings.TrimPrefix(bytecode, "0x")
+    length := len(bytecode) / 2
+    return fmt.Sprintf("61%04x600c5f3961%04x5ff3%s", length, length, bytecode)
 }
 ```
 
